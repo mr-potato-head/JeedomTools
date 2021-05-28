@@ -37,4 +37,4 @@ jobs:
         with:
           push: true
           tags: |
-            test_jeedom_bridge:${{ github.sha }}
+            docker.pkg.github.com/${{ github.repository }}/my-image:${{ github.ref }}
