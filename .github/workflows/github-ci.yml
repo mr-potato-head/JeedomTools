@@ -36,4 +36,4 @@ jobs:
         with:
           push: true
           tags: |
-            6u1lh3m/jeedom-influx-bridge/test:2.0
+            6u1lh3m/jeedom-influx-bridge:2.0
