@@ -101,7 +101,7 @@ class JeedomHandler(BaseHTTPRequestHandler):
         # Part 2: Write Data to InfluxDB
         if val !='':
             # Prepare point and send it to influx DB
-            client = InfluxDBClient(url="http://"+INFLUXDB_SERVER+":"+INFLUXDB_PORT+"/", token=INFLUXDB_TOKEN, org=INFLUXDB_ORG)
+            client = InfluxDBClient(url="http://"+INFLUXDB_SERVER+":"+str(INFLUXDB_PORT)+"/", token=INFLUXDB_TOKEN, org=INFLUXDB_ORG)
             write_api = client.write_api(write_options=SYNCHRONOUS)
             point = Point(name).tag("location", location).field("value", val)
             write_api.write(bucket="jeedom", record=[point])
