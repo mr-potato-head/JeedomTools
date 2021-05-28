@@ -1,0 +1,25 @@
+version: "3.3"
+volumes:
+  infludb:
+    external:
+      name: influxdb_jeedom_test
+
+services:
+  #influx:
+  #  image: influxdb:2.0
+  #  ports:
+  #    - "8086:8086"
+  #  volumes:
+  #    - infludb:/var/lib/influxdb2
+
+  bridge:
+    build: .
+    ports:
+      - "1234:1234"
+    environment:
+      - LISTENING_PORT=1234
+      - INFLUXDB_SERVER=influx
+      - INFLUXDB_PORT=8086
+      - INFLUXDB_ORG='JEEDOM'
+      - INFLUXDB_TOKEN=${BRIDGE_READ_WRITE_TOKEN}
+      - INFLUXDB_BUCKET='jeedom'

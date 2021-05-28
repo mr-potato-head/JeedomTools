@@ -1,32 +1,63 @@
 #!/usr/bin/python
 
-""" mainHTTPGetListener.py: Retrieve GET request from Jeedom and forward them to InfluxDB """
+""" Retrieve GET request from Jeedom and forward them to InfluxDB V2"""
 
-from http.server import BaseHTTPRequestHandler, HTTPServer
 import urllib
 import time
-from influxdb import InfluxDBClient
+import os
 import sys
+from http.server import BaseHTTPRequestHandler, HTTPServer
+from influxdb_client import InfluxDBClient, Point, WriteOptions
+from influxdb_client .client.write_api import SYNCHRONOUS
 
-__author__ = "Jonathan Neuhaus"
-__copyright__ = "Copyright 2016"
+__author__ = "Jonathan Neuhaus, Guilhem Guyonnet"
+__copyright__ = "Copyright 2021"
 __license__ = "MIT License"
-__version__ = "1.0.0"
-__status__ = "Production"
+__version__ = "2.0.0"
+__status__ = "Development"
 
 ###########################
 #    SCRIPT SETTINGS
 ###########################
-# Set the port where you want the bridge service to run
-PORT_NUMBER = 1234
+# All settings come from the following environment variables
+# Set the listening port for GET request
+LISTENING_PORT = 1234
 # InfluxDB Server parameters
-INLUXDB_SERVER_IP = '192.168.x.y'
-INLUXDB_SERVER_PORT = 8086
-INFLUXDB_USERNAME = 'root'
-INFLUXDB_PASSWORD = 'root'
-INFLUXDB_DB_NAME = 'db_name'
+INFLUXDB_SERVER = '127.0.0.1'
+INFLUXDB_PORT = 8086
+INFLUXDB_ORG = 'JEEDOM'
+INFLUXDB_TOKEN = 'admin-token'
+INFLUXDB_BUCKET = 'jeedom'
 ###########################
 
+def resolv_settings():
+    if "LISTENING_PORT" in os.environ:
+        print('coucou')
+        global LISTENING_PORT
+        LISTENING_PORT = int(os.environ['LISTENING_PORT'])
+    if "INFLUXDB_SERVER" in os.environ:
+        global INFLUXDB_SERVER
+        INFLUXDB_SERVER = os.environ['INFLUXDB_SERVER']
+    if "INFLUXDB_PORT" in os.environ:
+        global INFLUXDB_PORT
+        INFLUXDB_PORT = int(os.environ['INFLUXDB_PORT'])
+    if "INFLUXDB_ORG" in os.environ:
+        global INFLUXDB_ORG
+        INFLUXDB_ORG = os.environ['INFLUXDB_ORG']
+    if "INFLUXDB_TOKEN" in os.environ:
+        global INFLUXDB_TOKEN
+        INFLUXDB_TOKEN = os.environ['INFLUXDB_TOKEN']
+    if "INFLUXDB_BUCKET" in os.environ:
+        global INFLUXDB_BUCKET
+        INFLUXDB_BUCKET = os.environ['INFLUXDB_BUCKET']
+
+def display_settings():
+    print("LISTENING_PORT: " + str(LISTENING_PORT))
+    print("INFLUXDB_SERVER: " + INFLUXDB_SERVER)
+    print("INFLUXDB_PORT: " + str(INFLUXDB_PORT))
+    print("INFLUXDB_ORG: " + str(INFLUXDB_ORG))
+    print("INFLUXDB_TOKEN: **********************")
+    print("INFLUXDB_BUCKET: " + INFLUXDB_BUCKET)
 
 # This class will handles any incoming request from jeedom
 # Request expected (Jeedom Push URL)
@@ -35,18 +66,16 @@ INFLUXDB_DB_NAME = 'db_name'
 class JeedomHandler(BaseHTTPRequestHandler):
     """ Handle Jeedom > InfluxDB Requests """
 
-    # Disable Log messages
-    @staticmethod
-    def log_message(format, *args):
-        return
-
     # Handler for the GET requests
     def do_GET(self):
         # Part 1: Get the correct GET request from jeedom
         try:
             parsed_url = urllib.parse.urlparse(self.path)
             query = urllib.parse.parse_qs(parsed_url.query)
-            #print(query)
+
+            # Display the query array after parsing (can be useful for debug)
+            print(query)
+
             # Extract the value, the name and the location + add current time
             try:
                 val=query["val"][0]
@@ -55,12 +84,11 @@ class JeedomHandler(BaseHTTPRequestHandler):
                 except:
                     val = query["val"][0]
                 name = query["name"][0]
-                #name = name.encode('latin-1').decode('utf-8')
                 name = urllib.parse.unquote(name)
                 location = query["location"][0]
                 act_time = time.time() * 1000000000
             except:
-                #print('no value in url')
+                print('no value in url')
                 return
         except:
             print("URL Parsing error: ", sys.exc_info()[0])
@@ -72,34 +100,38 @@ class JeedomHandler(BaseHTTPRequestHandler):
 
         # Part 2: Write Data to InfluxDB
         if val !='':
+            # Prepare point and send it to influx DB
+            client = InfluxDBClient(url="http://"+INFLUXDB_SERVER+":"+INFLUXDB_PORT+"/", token=INFLUXDB_TOKEN, org=INFLUXDB_ORG)
+            write_api = client.write_api(write_options=SYNCHRONOUS)
+            point = Point(name).tag("location", location).field("value", val)
+            write_api.write(bucket="jeedom", record=[point])
+            client.close()
+
+            # Send valid http response
             self.send_response(200)
             self.send_header('Content-type', 'text/html')
             self.end_headers()
-            client = InfluxDBClient(INLUXDB_SERVER_IP, INLUXDB_SERVER_PORT, INFLUXDB_USERNAME, INFLUXDB_PASSWORD, INFLUXDB_DB_NAME)
-
-
-        # Build JSON data
-        req = [
-            {
-                'measurement': name,
-                'tags': {
-                    'lieu': location
-                },
-                'time': int(act_time),
-                'fields': {
-                    'value': val
-                }
-            }]
-        client.write_points(req)
+            
         return
 
 
+######################
+# ENTRY POINT
+######################
+
 if __name__ == '__main__':
+
     """ Start Jeedom-InfluxDB bridge """
     try:
+        # Get and check settings
+        resolv_settings()
+
+        # Display settings that will be used
+        display_settings()
+
         # Start the web server to handle the request
-        server = HTTPServer(('', PORT_NUMBER), JeedomHandler)
-        print('Started Jeedom-InfluxDB bridge on port ', PORT_NUMBER)
+        server = HTTPServer(('', LISTENING_PORT), JeedomHandler)
+        print('Started Jeedom-InfluxDB bridge on port ', LISTENING_PORT)
 
         # Wait forever for incoming http requests
         server.serve_forever()
