@@ -38,4 +38,3 @@ jobs:
           push: true
           tags: |
             test_jeedom_bridge:${{ github.sha }}
-            test_jeedom_bridge:${{ github.ref }}
