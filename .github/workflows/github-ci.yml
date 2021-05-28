@@ -37,4 +37,4 @@ jobs:
         with:
           push: true
           tags: |
-            docker.pkg.github.com/jeedomtools/my-image/test:${{ github.sha }}
+            docker.pkg.github.com/mr-potato-head/jeedomtools/test:${{ github.sha }}
